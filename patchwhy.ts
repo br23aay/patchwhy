@@ -23,6 +23,7 @@ import { renderHtml, type ReportItem, type ReportData } from "./src/report.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const TOP_N = 5;
+const MAX_MODEL_CALLS = 2; // iteration cap: at most 2 model calls per request
 
 const SQL = `SELECT a.asset_id, a.hostname, a.environment, a.internet_facing, a.criticality, k.cve, e.epss, k.ransomware, k.due_date, k.vendor, k.product
 FROM vulnstore.assets a
@@ -41,12 +42,15 @@ function loadEnv(): void {
   ].filter(Boolean) as string[];
   for (const f of candidates) {
     if (!fs.existsSync(f)) continue;
+    const seen = new Set<string>();
     // Own tiny parser: handles CRLF, `export `, quotes and BOM. Never prints values.
     for (const raw of fs.readFileSync(f, "utf8").replace(/^\uFEFF/, "").split(/\r?\n/)) {
       const m = raw.match(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/);
       if (!m || m[0].trim().startsWith("#")) continue;
       let v = m[2];
       if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
+      if (seen.has(m[1])) { if (v !== "") console.log(`WARNING: ${m[1]} appears more than once in .env; the FIRST value is used. Comment out the route you are not using.`); continue; }
+      seen.add(m[1]);
       if (process.env[m[1]] === undefined && v !== "") process.env[m[1]] = v;
     }
     console.log(`env file: ${f}`);
@@ -215,10 +219,15 @@ async function main(): Promise<void> {
   if (useModel) {
     try {
       const block = top.map((f) => `[${memIdByRank.get(f.rank)}] ${evidenceText(f)}`).join("\n");
-      const r = await nemotron(block);
+      // Guardrail: a hard cap on model calls per request (one retry on error), then stop.
+      let r: Awaited<ReturnType<typeof nemotron>> | undefined, lastErr: unknown;
+      for (let attempt = 1; attempt <= MAX_MODEL_CALLS && !r; attempt++) {
+        try { r = await nemotron(block); } catch (e) { lastErr = e; console.log(`model attempt ${attempt}/${MAX_MODEL_CALLS} failed: ${(e as Error).message}`); }
+      }
+      if (!r) throw lastErr ?? new Error("model unavailable");
       modelLines = parseModelLines(r.text);
-      modelMeta = { name: r.model, route: process.env.MODEL_ROUTE || "direct", host: r.host, tokensIn: r.tin, tokensOut: r.tout, ms: r.ms, headers: r.headers, sentChars: r.sentChars, evidenceLines: top.length };
-      modelInfo = `model: ${r.model} | route: ${process.env.MODEL_ROUTE || "direct"} | tokens in/out: ${r.tin ?? "?"}/${r.tout ?? "?"} | ${r.ms} ms${r.recovered ? " | answer recovered from reasoning trace, gated below" : ""}`;
+      modelMeta = { name: r.model, route: (process.env.MODEL_ROUTE === "meterless" && !/^(127\.0\.0\.1|localhost)(:|$)/.test(r.host)) ? "direct (MODEL_ROUTE says meterless but the endpoint is not local Nightshift)" : (process.env.MODEL_ROUTE || "direct"), host: r.host, tokensIn: r.tin, tokensOut: r.tout, ms: r.ms, headers: r.headers, sentChars: r.sentChars, evidenceLines: top.length };
+      modelInfo = `model: ${r.model} | route: ${modelMeta?.route ?? "direct"} | tokens in/out: ${r.tin ?? "?"}/${r.tout ?? "?"} | ${r.ms} ms${r.recovered ? " | answer recovered from reasoning trace, gated below" : ""}`;
     } catch (err) {
       modelInfo = `model call failed (${(err as Error).message}); using templates`;
     }
@@ -253,9 +262,13 @@ async function main(): Promise<void> {
     report.push({ rank: f.rank, asset: f.assetId, cve: f.cve, score: f.score, memory: id, gate, explanation });
   }
   console.log(`gate summary: ${passed} model explanations passed, ${rejected} rejected, rest used templates`);
+  const modelFailed = useModel && !modelMeta;
+  if (modelFailed || rejected > 0) {
+    console.log(`NEEDS HUMAN REVIEW: ${modelFailed ? `the model was unavailable after ${MAX_MODEL_CALLS} attempts` : `${rejected} model explanation(s) failed the evidence gate`}. The ranking above is unaffected (it is computed in code); explanations shown are fixed templates. Check each with: npx tsx patchwhy.ts audit <memory id>`);
+  }
   console.log("audit any evidence record:  npx tsx patchwhy.ts audit <memory id>");
   fs.mkdirSync(path.join(here, "out"), { recursive: true });
-  const cmp = compareMethods(rows, groupByAsset(rankRows(rows, new Set())), TOP_N);
+  const cmp = compareMethods(rows, ranked, TOP_N);
   fs.writeFileSync(path.join(here, "out", "report.html"), renderHtml({ at: stamp, modelInfo, items: htmlItems, passed, rejected, compare: cmp, topN: TOP_N, sql: SQL, sqlMs, rowCount: rows.length, model: modelMeta }));
   console.log("report written: out/report.html");
   fs.writeFileSync(path.join(here, "out", "last_run.json"), JSON.stringify({ at: stamp, modelInfo, report }, null, 2));
