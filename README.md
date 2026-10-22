@@ -46,7 +46,7 @@ Fill in **one** model route only (Nightshift: `MODEL_BASE_URL=http://127.0.0.1:8
 ## Sponsor technology
 - **Zetaris:** three REST/inline sources joined by one SQL statement over the REST API; no data copied.
 - **Meterless H-MEM:** stores evidence and analyst decisions with sources; a remembered decision changes the ranking (`test/hmem_integration.test.ts` proves this against the real engine) and each record has an audit ledger.
-- **Meterless Nightshift + NVIDIA Nemotron:** the explanation model runs through the local Nightshift endpoint (`127.0.0.1:8088`, model `meterless/auto`); in our runs Nightshift served an NVIDIA Nemotron model (the report records the model name it returns). Nightshift issues a signed receipt per call (Proof tab). Its response did not include a cost figure, so the report says so rather than guessing.
+- **Meterless Nightshift + NVIDIA Nemotron:** the explanation model runs through the local Nightshift endpoint (`127.0.0.1:8088`, model `meterless/auto`); in our runs Nightshift served an NVIDIA Nemotron model (the report records the model name it returns). Nightshift issues a signed receipt per call (Proof tab). The HTTP response carries no cost figure, so the report says so rather than guessing; the signed receipt does: Nightshift's receipts list our runs under client `patchwhy`, served by Nemotron 3.5 Super VL 120B A12B, signed by `meterlessd` (Ed25519), with a cost of $0.0000 per call on our trial credits.
 
 ## Honest limits
 - The asset inventory is synthetic. The scoring weights are our own and are not validated against real incident data.
