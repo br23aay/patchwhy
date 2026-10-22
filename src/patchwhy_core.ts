@@ -41,7 +41,7 @@ export function parseRows(data: any[][]): Row[] {
   }));
 }
 
-// Fixed weights, chosen by us, never by the model. Maximum 110.
+// Fixed weights, chosen by me, never by the model. Maximum 110.
 export function scoreRow(r: Row, exposureOverride?: string): number {
   const exposure = (exposureOverride ?? r.internetFacing) === "yes" ? 15 : 0;
   const env = r.environment === "production" ? 5 : r.environment === "staging" ? 0 : -5;

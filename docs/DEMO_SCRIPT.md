@@ -4,7 +4,7 @@ Record at 1080p. Show the terminal and one browser tab. Do a dry run first. Keep
 
 **0:00 Problem (20s).** "Security teams cannot patch everything. A severity score does not say which flaws attackers are using against companies like yours, and nobody can defend a ranking they cannot explain."
 
-**0:20 Data (30s).** Zetaris SQL Workspace: show the three sources and the one joined query (sql/zetaris.sql). "KEV, EPSS and our asset inventory, joined in place by Zetaris. The inventory is synthetic."
+**0:20 Data (30s).** Zetaris SQL Workspace: show the three sources and the one joined query (sql/zetaris.sql). "KEV, EPSS and my asset inventory, joined in place by Zetaris. The inventory is synthetic."
 
 **0:50 Run (40s).** `npx tsx patchwhy.ts run`. Point at: the model line (Nemotron through Nightshift), five findings from five different assets, the evidence gate result, and the "what would change this" line.
 
