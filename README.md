@@ -47,6 +47,9 @@ Fill in **one** model route only (Nightshift: `MODEL_BASE_URL=http://127.0.0.1:8
 
 *Signed Nightshift receipt for one real PatchWhy call (client `patchwhy`).*
 
+## Demo Video
+Demo video (3 min 23 s): https://youtu.be/gNwycIu_thg
+
 ## Sponsor technology
 - **Zetaris:** three REST/inline sources joined by one SQL statement over the REST API; no data copied.
 - **Meterless H-MEM:** stores evidence and analyst decisions with sources; a remembered decision changes the ranking (`test/hmem_integration.test.ts` proves this against the real engine) and each record has an audit ledger.
