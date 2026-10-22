@@ -43,6 +43,10 @@ Environment variables: `ZETARIS_REST_URL`, `ZETARIS_ORG_ID`, `ZETARIS_API_KEY`, 
 
 Fill in **one** model route only (Nightshift: `MODEL_BASE_URL=http://127.0.0.1:8088/v1`, `NEMOTRON_MODEL=meterless/auto`). If a key appears twice in `.env` the first value wins, and PatchWhy prints a warning. The report states which endpoint was actually used and labels a non-local route as "direct".
 
+![Nightshift compute receipt for a PatchWhy call: Nemotron 3.5 Super VL, 1152 in / 1633 out, $0.0000, receipt rcpt_req_a9a828q8](docs/nightshift-receipt.png)
+
+*Signed Nightshift receipt for one real PatchWhy call (client `patchwhy`).*
+
 ## Sponsor technology
 - **Zetaris:** three REST/inline sources joined by one SQL statement over the REST API; no data copied.
 - **Meterless H-MEM:** stores evidence and analyst decisions with sources; a remembered decision changes the ranking (`test/hmem_integration.test.ts` proves this against the real engine) and each record has an audit ledger.
