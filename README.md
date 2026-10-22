@@ -50,7 +50,7 @@ Fill in **one** model route only (Nightshift: `MODEL_BASE_URL=http://127.0.0.1:8
 ## Sponsor technology
 - **Zetaris:** three REST/inline sources joined by one SQL statement over the REST API; no data copied.
 - **Meterless H-MEM:** stores evidence and analyst decisions with sources; a remembered decision changes the ranking (`test/hmem_integration.test.ts` proves this against the real engine) and each record has an audit ledger.
-- **Meterless Nightshift + NVIDIA Nemotron:** the explanation model runs through the local Nightshift endpoint (`127.0.0.1:8088`, model `meterless/auto`); in my runs Nightshift served an NVIDIA Nemotron model (the report records the model name it returns). Nightshift issues a signed receipt per call (Proof tab). The HTTP response carries no cost figure, so the report says so rather than guessing; the signed receipt does: Nightshift's receipts list my runs under client `patchwhy`, served by Nemotron 3.5 Super VL 120B A12B, signed by `meterlessd` (Ed25519), with a cost of $0.0000 per call on my trial credits.
+- **Meterless Nightshift + NVIDIA Nemotron:** the explanation model runs through the local Nightshift endpoint (`127.0.0.1:8088`, model `meterless/auto`); in my runs Nightshift served an NVIDIA Nemotron model (the report records the model name it returns). Nightshift issues a signed receipt per call (Proof tab). The HTTP response carries no cost figure, so the report says so rather than guessing; the signed receipt does: Nightshift's receipts list my runs under client `patchwhy`, served by Nemotron (3.5 Super VL 120B A12B in the receipt shown; other runs were served by Nemotron 3 Ultra 550B, as each report records), signed by `meterlessd` (Ed25519), with a cost of $0.0000 per call on my trial credits.
 
 ## Honest limits
 - The asset inventory is synthetic. The scoring weights are my own and are not validated against real incident data.
@@ -61,7 +61,7 @@ Fill in **one** model route only (Nightshift: `MODEL_BASE_URL=http://127.0.0.1:8
 ## Pre-existing code and AI assistance
 - **Pre-existing (Meterless agentathon-starter, Apache-2.0):** `notebook.ts`, `src/engine.ts`, `src/llm.ts`, `seed/`, `images/`, the vendored H-MEM reference (`vendor/`, installed by `npm run setup`). The original README is `TEMPLATE_README.md`.
 - **New work for this hackathon:** `patchwhy.ts`, `src/patchwhy_core.ts`, `src/overrides.ts`, `src/report.ts`, `test/`, `data/`, `sql/`, `docs/`.
-- Built solo by Bharadwaj Rachuri. Written with AI coding assistance; I reviewed, ran and tested all of it.
+- Built solo by Bharadwaj Rachuri. AI coding tool used: Claude. I reviewed, ran and tested all of it.
 
 ## Layout
 `patchwhy.ts` CLI | `src/patchwhy_core.ts` scoring, counterfactuals, evidence gate | `src/overrides.ts` decisions read back from H-MEM | `src/report.ts` HTML report | `sql/zetaris.sql` Zetaris setup | `data/assets.csv` synthetic inventory | `docs/agent-loop-spec.md` design notes
