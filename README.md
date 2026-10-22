@@ -20,6 +20,8 @@ Security teams cannot patch everything. Ranking by a generic severity score send
 7. **Guardrails.** At most 2 model calls per request. If the model is unavailable, or the gate rejects a line, the run prints `NEEDS HUMAN REVIEW`, shows template sentences instead, and points to the `audit` command. The ranking itself never depends on the model.
 8. **Report.** `out/report.html` shows the findings, evidence, gate results, a comparison with simpler rankings, and a "How this answer was produced" section: the exact SQL, rows and time, the model, route and endpoint, token usage, and what is and is not sent to the model.
 
+![PatchWhy report from a real run: ranked findings, evidence, SQL, model route and privacy path](docs/report.png)
+
 ## How to run
 Requirements: Docker (Zetaris local platform), Node 22+, a Nightshift runtime token and NVIDIA key (see the hackathon Power guide).
 

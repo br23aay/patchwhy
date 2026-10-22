@@ -61,7 +61,7 @@ body{background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,sans-serif;max
 .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:12px 0}
 .muted{color:var(--muted);font-size:.9rem}.gate{font-size:.85rem;margin-left:8px}.ok{color:var(--ok)}.warn{color:var(--warn)}
 pre{white-space:pre-wrap;word-break:break-word;background:var(--bg);padding:8px;border-radius:6px}
-table{width:100%;border-collapse:collapse;font-size:.9rem}td,th{border-bottom:1px solid var(--line);padding:6px;text-align:left;vertical-align:top}
+table{width:100%;border-collapse:collapse;font-size:.9rem}td,th{border-bottom:1px solid var(--line);padding:6px;text-align:left;vertical-align:top}th{white-space:nowrap;padding-right:14px}
 @media (max-width:600px){td:last-child,th:last-child{display:none}}
 </style></head><body>
 <h1>PatchWhy</h1><p class="muted">Which known-exploited vulnerabilities should we patch first, and why? Sources: CISA KEV, FIRST EPSS and a synthetic asset inventory, joined in Zetaris. Generated ${esc(d.at)}.</p>
