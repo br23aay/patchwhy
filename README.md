@@ -17,7 +17,8 @@ Security teams cannot patch everything. Ranking by a generic severity score send
 4. **Explain (NVIDIA Nemotron via Meterless Nightshift).** The model writes one line per finding from the evidence only.
 5. **Evidence gate.** A model line is shown only if it cites a memory id from this run and every number in it appears in the cited evidence. Otherwise a template sentence is used and the rejection is reported.
 6. **Counterfactuals.** "If this host were not internet-facing, its score would fall from X to Y and its rank from A to B." Computed by re-scoring, not by the model.
-7. **Report.** `out/report.html` shows the findings, evidence, gate results and a comparison with simpler rankings.
+7. **Guardrails.** At most 2 model calls per request. If the model is unavailable, or the gate rejects a line, the run prints `NEEDS HUMAN REVIEW`, shows template sentences instead, and points to the `audit` command. The ranking itself never depends on the model.
+8. **Report.** `out/report.html` shows the findings, evidence, gate results, a comparison with simpler rankings, and a "How this answer was produced" section: the exact SQL, rows and time, the model, route and endpoint, token usage, and what is and is not sent to the model.
 
 ## How to run
 Requirements: Docker (Zetaris local platform), Node 22+, a Nightshift runtime token and NVIDIA key (see the hackathon Power guide).
@@ -38,10 +39,12 @@ npm test                            # unit tests + H-MEM integration test
 
 Environment variables: `ZETARIS_REST_URL`, `ZETARIS_ORG_ID`, `ZETARIS_API_KEY`, `MODEL_BASE_URL`, `MODEL_API_KEY`, `NEMOTRON_MODEL`, optional `MODEL_ROUTE=meterless`.
 
+Fill in **one** model route only (Nightshift: `MODEL_BASE_URL=http://127.0.0.1:8088/v1`, `NEMOTRON_MODEL=meterless/auto`). If a key appears twice in `.env` the first value wins, and PatchWhy prints a warning. The report states which endpoint was actually used and labels a non-local route as "direct".
+
 ## Sponsor technology
 - **Zetaris:** three REST/inline sources joined by one SQL statement over the REST API; no data copied.
 - **Meterless H-MEM:** stores evidence and analyst decisions with sources; a remembered decision changes the ranking (`test/hmem_integration.test.ts` proves this against the real engine) and each record has an audit ledger.
-- **Meterless Nightshift + NVIDIA Nemotron:** the explanation model runs through the local Nightshift endpoint; Nightshift issues signed receipts.
+- **Meterless Nightshift + NVIDIA Nemotron:** the explanation model runs through the local Nightshift endpoint (`127.0.0.1:8088`, model `meterless/auto`); in our runs Nightshift served an NVIDIA Nemotron model (the report records the model name it returns). Nightshift issues a signed receipt per call (Proof tab). Its response did not include a cost figure, so the report says so rather than guessing.
 
 ## Honest limits
 - The asset inventory is synthetic. The scoring weights are our own and are not validated against real incident data.
