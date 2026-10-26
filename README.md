@@ -22,6 +22,14 @@ Security teams cannot patch everything. Ranking by a generic severity score send
 
 ![PatchWhy report from a real run: ranked findings, evidence, SQL, model route and privacy path](docs/report.png)
 
+## Try it without any credentials (sample mode)
+```bash
+npm install
+npm run setup
+npx tsx patchwhy.ts run --sample
+```
+Sample mode needs no Zetaris, no Nightshift and no keys, and never reads `.env`. It runs the same pipeline (scoring, grouping, H-MEM memory, counterfactuals, evidence records) on `data/sample_rows.json`, a snapshot of the real Zetaris join output (CISA KEV and FIRST EPSS public data with the synthetic inventory). The model is not called, so explanations use the fixed evidence-based templates. It seeds one analyst decision in a separate memory folder (`.patchwhy-sample/`) so the memory effect is visible. Output: `out/report.html` and a step trace in `out/trace.json`. The live run with Nemotron is the one shown in the demo video.
+
 ## How to run
 Requirements: Docker (Zetaris local platform), Node 22+, a Nightshift runtime token and NVIDIA key (see the hackathon Power guide).
 
@@ -33,6 +41,8 @@ npm run setup                       # vendors the H-MEM reference into vendor/ (
 cp .env.example .env                # fill in ZETARIS_* and MODEL_* values; never commit .env
 npx tsx patchwhy.ts run             # rank, remember, explain, gate, write out/report.html
 npx tsx patchwhy.ts run --no-model  # same without the model call
+npx tsx patchwhy.ts run --sample    # bundled snapshot, no credentials needed
+npx tsx patchwhy.ts snapshot        # refresh data/sample_rows.json from Zetaris
 npx tsx patchwhy.ts override A001 CVE-2024-3400 "accepted risk until the Friday window"
 npx tsx patchwhy.ts audit mem-1     # ledger history of one memory
 npx tsx patchwhy.ts compare         # three rankings side by side

@@ -1,6 +1,8 @@
 // PatchWhy: "Which known-exploited vulnerabilities should we patch first, and why?"
 //
 //   npx tsx patchwhy.ts run [--no-model]          query Zetaris, rank, remember in H-MEM, explain, gate
+//   npx tsx patchwhy.ts run --sample              same pipeline on a bundled snapshot: no Zetaris, no Nightshift, no keys
+//   npx tsx patchwhy.ts snapshot                  save the live Zetaris rows to data/sample_rows.json (needs Zetaris)
 //   npx tsx patchwhy.ts override A001 CVE-2024-3400 "accepted risk until Friday window"
 //   npx tsx patchwhy.ts audit mem-3               full ledger history of one memory
 //
@@ -22,6 +24,9 @@ import { lookupOverrides, overrideText } from "./src/overrides.ts";
 import { renderHtml, type ReportItem, type ReportData } from "./src/report.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const SAMPLE_FILE = path.join(here, "data", "sample_rows.json");
+const TRACE: { t: string; step: string; detail: string }[] = [];
+const trace = (step: string, detail: string) => TRACE.push({ t: new Date().toISOString(), step, detail });
 const TOP_N = 5;
 const MAX_MODEL_CALLS = 2; // iteration cap: at most 2 model calls per request
 
@@ -140,12 +145,23 @@ async function nemotron(evidenceBlock: string): Promise<{ text: string; model: s
   };
 }
 
+function sampleRows(): any[][] {
+  if (!fs.existsSync(SAMPLE_FILE)) throw new Error("data/sample_rows.json not found");
+  const j = JSON.parse(fs.readFileSync(SAMPLE_FILE, "utf8"));
+  if (!Array.isArray(j.rows)) throw new Error("data/sample_rows.json has no rows array");
+  console.log(`  sample snapshot taken ${j.takenAt} from ${j.source}`);
+  return j.rows;
+}
+
 async function main(): Promise<void> {
-  loadEnv();
   const [command, ...rest] = process.argv.slice(2);
+  const sample = command === "run" && rest.includes("--sample");
+  // Sample mode never reads .env, so it cannot reach for credentials or a model.
+  if (!sample) loadEnv(); else console.log("SAMPLE MODE: bundled snapshot, no Zetaris, no Nightshift, no credentials read");
   const { HMEM, source } = await loadHMEM();
-  console.log(`engine source: ${source} | memory: .patchwhy/`);
-  const hmem = new HMEM({ persistDir: path.join(here, ".patchwhy") });
+  const memDir = sample ? ".patchwhy-sample" : ".patchwhy";
+  console.log(`engine source: ${source} | memory: ${memDir}/`);
+  const hmem = new HMEM({ persistDir: path.join(here, memDir) });
 
   if (command === "override") {
     const [assetId, cve, ...why] = rest.filter((a) => !a.startsWith("--"));
@@ -168,6 +184,20 @@ async function main(): Promise<void> {
     return;
   }
 
+  if (command === "snapshot") {
+    console.log("querying Zetaris for a sample snapshot...");
+    const rows = await zetarisRows();
+    fs.mkdirSync(path.join(here, "data"), { recursive: true });
+    fs.writeFileSync(SAMPLE_FILE, JSON.stringify({
+      takenAt: new Date().toISOString(),
+      source: "Zetaris vulnstore.assets+kev+epss (CISA KEV and FIRST EPSS public data, synthetic asset inventory)",
+      columns: ["asset_id", "hostname", "environment", "internet_facing", "criticality", "cve", "epss", "ransomware", "due_date", "vendor", "product"],
+      rows,
+    }, null, 1));
+    console.log(`wrote data/sample_rows.json (${rows.length} rows)`);
+    return;
+  }
+
   if (command === "compare") {
     console.log("querying Zetaris (KEV + EPSS + assets)...");
     const rows = parseRows(await zetarisRows());
@@ -182,21 +212,33 @@ async function main(): Promise<void> {
   }
 
   if (command !== "run") return usage();
-  const useModel = !rest.includes("--no-model");
+  const useModel = !rest.includes("--no-model") && !sample;
+  trace("start", sample ? "sample mode" : "live mode");
 
   // 1. Data: one SQL statement across three sources, executed by Zetaris.
-  console.log("querying Zetaris (KEV + EPSS + assets)...");
+  console.log(sample ? "loading bundled sample snapshot (same columns as the Zetaris query)..." : "querying Zetaris (KEV + EPSS + assets)...");
   const sqlStart = Date.now();
-  const rows = parseRows(await zetarisRows());
+  const rows = parseRows(sample ? sampleRows() : await zetarisRows());
   const sqlMs = Date.now() - sqlStart;
   console.log(`  ${rows.length} unpatched asset/vulnerability pairs`);
 
+  trace("data", `${rows.length} rows from ${sample ? "sample snapshot" : "Zetaris"} in ${sqlMs} ms`);
+  // Sample mode: seed one analyst decision on a fresh memory so the memory effect is visible.
+  if (sample) {
+    const probe = overrideText("A001", "CVE-2024-3400");
+    const has = hmem.query(probe, { threshold: 0.3 }).memories.some((m: any) => String(m.memory.content).startsWith(probe));
+    if (!has && rows.some((r) => r.assetId === "A001" && r.cve === "CVE-2024-3400")) {
+      const rec = hmem.add({ content: `${probe} accepted risk. Reason: patch window agreed for Friday (sample seed)`, type: "general", source: "sample:seed" });
+      console.log(`  sample seed: remembered ${rec.id} (accepted risk A001 CVE-2024-3400)`);
+    }
+  }
   // 2. Remembered analyst decisions (H-MEM) change the ranking.
   const { set: overrides, ids: overrideIds } = lookupOverrides(hmem, rows);
 
   // 3. Rank with fixed, auditable weights.
   const ranked = groupByAsset(rankRows(rows, overrides));
   const top = ranked.slice(0, TOP_N);
+  trace("rank", `${overrides.size} H-MEM override(s) applied; top ${TOP_N} of ${ranked.length} assets`);
 
   // 4. Remember each top finding with its source (H-MEM requires a source).
   const stamp = new Date().toISOString();
@@ -214,7 +256,7 @@ async function main(): Promise<void> {
 
   // 5. Explanations: Nemotron writes them, the evidence gate checks them.
   let modelLines = new Map<number, string>();
-  let modelInfo = "model: skipped (--no-model)";
+  let modelInfo = sample ? "model: not called (sample mode, fixed evidence-based templates)" : "model: skipped (--no-model)";
   let modelMeta: ReportData["model"] = null;
   if (useModel) {
     try {
@@ -234,6 +276,7 @@ async function main(): Promise<void> {
   }
 
   // 6. Report.
+  trace("explain", modelInfo);
   console.log("\n" + modelInfo + "\n");
   const today = new Date();
   const report: any[] = [];
@@ -271,12 +314,16 @@ async function main(): Promise<void> {
   const cmp = compareMethods(rows, ranked, TOP_N);
   fs.writeFileSync(path.join(here, "out", "report.html"), renderHtml({ at: stamp, modelInfo, items: htmlItems, passed, rejected, compare: cmp, topN: TOP_N, sql: SQL, sqlMs, rowCount: rows.length, model: modelMeta }));
   console.log("report written: out/report.html");
+  trace("done", `${passed} passed, ${rejected} rejected`);
+  fs.writeFileSync(path.join(here, "out", "trace.json"), JSON.stringify(TRACE, null, 1));
+  console.log("trace written: out/trace.json");
   fs.writeFileSync(path.join(here, "out", "last_run.json"), JSON.stringify({ at: stamp, modelInfo, report }, null, 2));
 }
 
 function usage(): void {
   console.log(`PatchWhy
-  npx tsx patchwhy.ts run [--no-model]
+  npx tsx patchwhy.ts run [--no-model] [--sample]
+  npx tsx patchwhy.ts snapshot
   npx tsx patchwhy.ts override <asset id> <CVE> "<reason>"
   npx tsx patchwhy.ts audit <memory id>\n  npx tsx patchwhy.ts compare`);
 }

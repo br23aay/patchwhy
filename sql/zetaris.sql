@@ -1,7 +1,8 @@
+-- NOTE (26 Oct): FIRST's order=!epss on this API now returns CVEs sorted by id, not by score, so the EPSS source filters with epss-gt=0.88 (944 rows) instead of "top 1000".
 -- VERIFIED 21 Oct 2026 in Zetaris SQL Workspace. Run ONE statement at a time.
 CREATE LIGHTNING DATABASE VULN_REST DESCRIBE BY "KEV and EPSS REST sources"
 
-CREATE LIGHTNING REST TABLE epss_top FROM VULN_REST REQUEST(endpoint "https://api.first.org/data/v1/epss?order=!epss&limit=1000", method "get", response_type "json", http_encoding "URLENCODED") HEADER () BODY ()
+CREATE LIGHTNING REST TABLE epss_hi FROM VULN_REST REQUEST(endpoint "https://api.first.org/data/v1/epss?epss-gt=0.88&limit=1000", method "get", response_type "json", http_encoding "URLENCODED") HEADER () BODY ()
 
 CREATE LIGHTNING REST TABLE kev_catalog FROM VULN_REST REQUEST(endpoint "https://raw.githubusercontent.com/cisagov/kev-data/develop/known_exploited_vulnerabilities.json", method "get", response_type "json", http_encoding "URLENCODED") HEADER () BODY ()
 
@@ -9,7 +10,7 @@ CREATE SCHEMASTORE CONTAINER vulnstore
 
 CREATE SCHEMASTORE VIEW kev WITH CONTAINER vulnstore AS SELECT v.cveID AS cve, v.vendorProject AS vendor, v.product AS product, v.vulnerabilityName AS vuln_name, v.dateAdded AS date_added, v.dueDate AS due_date, v.knownRansomwareCampaignUse AS ransomware FROM VULN_REST.kev_catalog LATERAL VIEW explode(vulnerabilities) AS v
 
-CREATE SCHEMASTORE VIEW epss WITH CONTAINER vulnstore AS SELECT d.cve AS cve, CAST(d.epss AS DOUBLE) AS epss, CAST(d.percentile AS DOUBLE) AS percentile FROM VULN_REST.epss_top LATERAL VIEW explode(data) AS d
+CREATE SCHEMASTORE VIEW epss WITH CONTAINER vulnstore AS SELECT d.cve AS cve, CAST(d.epss AS DOUBLE) AS epss, CAST(d.percentile AS DOUBLE) AS percentile FROM VULN_REST.epss_hi LATERAL VIEW explode(data) AS d
 
 SELECT k.cve, k.vendor, k.product, e.epss, e.percentile, k.ransomware, k.due_date FROM vulnstore.kev k JOIN vulnstore.epss e ON k.cve = e.cve ORDER BY e.epss DESC LIMIT 10
 
