@@ -30,6 +30,36 @@ npx tsx patchwhy.ts run --sample
 ```
 Sample mode needs no Zetaris, no Nightshift and no keys, and never reads `.env`. It runs the same pipeline (scoring, grouping, H-MEM memory, counterfactuals, evidence records) on `data/sample_rows.json`, a snapshot of the real Zetaris join output (CISA KEV and FIRST EPSS public data with the synthetic inventory). The model is not called, so explanations use the fixed evidence-based templates. It seeds one analyst decision in a separate memory folder (`.patchwhy-sample/`) so the memory effect is visible. Output: `out/report.html` and a step trace in `out/trace.json`. The live run with Nemotron is the one shown in the demo video.
 
+## Sample inputs and outputs
+All three run offline in sample mode (`--sample`, no keys). Output below is from the bundled snapshot; the model is not called, so explanations are the fixed templates.
+
+**1. Input:** `npx tsx patchwhy.ts run --sample`
+```
+#1  mail-01 (A012)       CVE-2021-34473  score 115
+    why-not-lower: If mail-01 were not internet-facing, its score would fall from 115 to 100 and its rank from 1 to 5.
+#2  fw-edge-01 (A001)    CVE-2024-0012   score 112.4   [accepted risk on this asset: CVE-2024-3400 (mem-1)]
+#3  vpn-gw-01 (A003)     CVE-2024-21887  score 110.5
+#4  app-orders-01 (A014) CVE-2021-44228  score 110.5
+#5  wiki-01 (A005)       CVE-2023-22518  score 103
+```
+
+**2. Input:** record an analyst decision, then run again
+`npx tsx patchwhy.ts override A012 CVE-2021-34473 "accepted risk until the Friday window" --sample`
+```
+remembered mem-7 [working] Analyst override: A012 CVE-2021-34473 accepted risk. Reason: accepted risk until the Friday window
+#1  mail-01 (A012)  CVE-2021-26855  score 115     <- the headline CVE on mail-01 changed
+    accepted risk on this asset: CVE-2021-34473 (mem-7)
+```
+The remembered decision changed the next ranking: the accepted CVE is no longer the headline and is listed as accepted risk with its memory id.
+
+**3. Input:** `npx tsx patchwhy.ts audit mem-1 --sample`
+```
+- create by system at <timestamp>
+- read by system at <timestamp>
+- read by system at <timestamp>
+```
+(the append-only ledger lists every action on the record, shown here as the first lines; `out/trace.json` logs the steps of each run: data, rank, explain, done).
+
 ## How to run
 Requirements: Docker (Zetaris local platform), Node 22+, a Nightshift runtime token and NVIDIA key (see the hackathon Power guide).
 
