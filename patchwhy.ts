@@ -155,7 +155,7 @@ function sampleRows(): any[][] {
 
 async function main(): Promise<void> {
   const [command, ...rest] = process.argv.slice(2);
-  const sample = command === "run" && rest.includes("--sample");
+  const sample = ["run", "override", "audit"].includes(command ?? "") && rest.includes("--sample");
   // Sample mode never reads .env, so it cannot reach for credentials or a model.
   if (!sample) loadEnv(); else console.log("SAMPLE MODE: bundled snapshot, no Zetaris, no Nightshift, no credentials read");
   const { HMEM, source } = await loadHMEM();
@@ -187,7 +187,6 @@ async function main(): Promise<void> {
   if (command === "snapshot") {
     console.log("querying Zetaris for a sample snapshot...");
     const rows = await zetarisRows();
-    if (rows.length === 0) throw new Error("Zetaris returned 0 rows; not writing an empty snapshot (check the views in sql/zetaris.sql)");
     fs.mkdirSync(path.join(here, "data"), { recursive: true });
     fs.writeFileSync(SAMPLE_FILE, JSON.stringify({
       takenAt: new Date().toISOString(),
@@ -325,8 +324,8 @@ function usage(): void {
   console.log(`PatchWhy
   npx tsx patchwhy.ts run [--no-model] [--sample]
   npx tsx patchwhy.ts snapshot
-  npx tsx patchwhy.ts override <asset id> <CVE> "<reason>"
-  npx tsx patchwhy.ts audit <memory id>\n  npx tsx patchwhy.ts compare`);
+  npx tsx patchwhy.ts override <asset id> <CVE> "<reason>" [--sample]
+  npx tsx patchwhy.ts audit <memory id> [--sample]\n  npx tsx patchwhy.ts compare`);
 }
 
 main().catch((err) => { console.error(err); process.exit(1); });

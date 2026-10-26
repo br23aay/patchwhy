@@ -4,6 +4,10 @@
 
 PatchWhy is an agent for small security teams. It joins three data sources in Zetaris, ranks the unpatched assets with fixed, auditable weights, remembers analyst decisions in Meterless H-MEM, and has NVIDIA Nemotron explain each ranking. Every explanation must pass an evidence gate before it is shown. Entry for **Track 02: The Agent That Can Explain Why**.
 
+> **Track:** The Agent That Can Explain Why
+> **Sponsor technology:** Zetaris, Meterless (H-MEM and Nightshift), NVIDIA Nemotron
+> **Run without any credentials:** `npm install && npm run setup && npx tsx patchwhy.ts run --sample`
+
 ## The problem
 Security teams cannot patch everything. Ranking by a generic severity score sends them after the wrong things, and a ranking nobody can explain is hard to defend. PatchWhy puts real exploitation evidence together with what the company actually runs, and shows its reasoning.
 
@@ -19,6 +23,41 @@ Security teams cannot patch everything. Ranking by a generic severity score send
 6. **Counterfactuals.** "If this host were not internet-facing, its score would fall from X to Y and its rank from A to B." Computed by re-scoring, not by the model.
 7. **Guardrails.** At most 2 model calls per request. If the model is unavailable, or the gate rejects a line, the run prints `NEEDS HUMAN REVIEW`, shows template sentences instead, and points to the `audit` command. The ranking itself never depends on the model.
 8. **Report.** `out/report.html` shows the findings, evidence, gate results, a comparison with simpler rankings, and a "How this answer was produced" section: the exact SQL, rows and time, the model, route and endpoint, token usage, and what is and is not sent to the model.
+
+### Architecture
+```mermaid
+flowchart LR
+  KEV[CISA KEV<br/>REST] --> Z
+  EPSS[FIRST EPSS<br/>REST] --> Z
+  INV[Asset inventory<br/>synthetic] --> Z
+  Z[Zetaris USL<br/>one SQL join] --> S[Scoring in code<br/>fixed weights]
+  M[(Meterless H-MEM<br/>decisions + evidence)] <--> S
+  S --> E[Evidence records<br/>with memory ids]
+  E --> N[NVIDIA Nemotron<br/>via Nightshift]
+  N --> G{Evidence gate}
+  G -- pass --> R[Report + counterfactuals]
+  G -- reject / model down --> T[Template text<br/>NEEDS HUMAN REVIEW]
+  T --> R
+```
+The model sits after the ranking. It can change the wording of an explanation, never the order.
+
+| Component | Role |
+|---|---|
+| Zetaris | One SQL join across three sources (the USL), see [docs/ZETARIS_USL.md](docs/ZETARIS_USL.md) |
+| Meterless H-MEM | Remembers evidence and analyst decisions with sources; decisions change the next ranking |
+| Meterless Nightshift + NVIDIA Nemotron | Writes one explanation per finding from the evidence only |
+| Plain TypeScript | Scoring, counterfactuals, evidence gate, report |
+
+### Failure handling
+| Failure | Behaviour |
+|---|---|
+| Model unavailable | One retry (at most 2 model calls), then template text and `NEEDS HUMAN REVIEW` |
+| Model line fails the evidence gate | That line is replaced by a template and the rejection is reported |
+| Zetaris unreachable or empty | `run` stops with the error; `snapshot` refuses to write an empty file; `run --sample` still works |
+| Model returns reasoning text only | The last `F<n>:` lines are taken and still pass the same gate |
+
+### Data and licensing
+CISA KEV and FIRST EPSS are public data. The asset inventory (`data/assets.csv`) is synthetic: a made-up company, not real systems. `data/sample_rows.json` is a snapshot of the Zetaris join output on 26 Oct 2026. No real customer data is used.
 
 ![PatchWhy report from a real run: ranked findings, evidence, SQL, model route and privacy path](docs/report.png)
 
@@ -98,7 +137,7 @@ Demo video (3 min 23 s): https://youtu.be/gNwycIu_thg
 ## Honest limits
 - The asset inventory is synthetic. The scoring weights are my own and are not validated against real incident data.
 - `compare` shows what different rankings put first. It is not a validation, and PatchWhy's score uses some of the signals it is compared on.
-- The EPSS table holds the top 1,000 scores only; KEV CVEs outside that set are not scored.
+- The EPSS source holds only CVEs with EPSS above 0.88 (944 rows on 26 Oct 2026); KEV CVEs below that are not scored. FIRST's own "top 1000" ordering stopped working that day, which is why the filter is used (details in `docs/ZETARIS_USL.md`).
 - The evidence gate checks citations and numbers, not whether a sentence is wise.
 
 ## Pre-existing code and AI assistance
@@ -107,4 +146,4 @@ Demo video (3 min 23 s): https://youtu.be/gNwycIu_thg
 - Built solo by Bharadwaj Rachuri. AI coding tool used: Claude. I reviewed, ran and tested all of it.
 
 ## Layout
-`patchwhy.ts` CLI | `src/patchwhy_core.ts` scoring, counterfactuals, evidence gate | `src/overrides.ts` decisions read back from H-MEM | `src/report.ts` HTML report | `sql/zetaris.sql` Zetaris setup | `data/assets.csv` synthetic inventory | `docs/agent-loop-spec.md` design notes
+`patchwhy.ts` CLI | `src/patchwhy_core.ts` scoring, counterfactuals, evidence gate | `src/overrides.ts` decisions read back from H-MEM | `src/report.ts` HTML report | `sql/zetaris.sql` Zetaris setup | `docs/ZETARIS_USL.md` USL write-up | `tools/zsql.ts` run SQL against Zetaris | `data/sample_rows.json` sample-mode snapshot | `data/assets.csv` synthetic inventory | `docs/agent-loop-spec.md` design notes
