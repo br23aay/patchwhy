@@ -187,6 +187,7 @@ async function main(): Promise<void> {
   if (command === "snapshot") {
     console.log("querying Zetaris for a sample snapshot...");
     const rows = await zetarisRows();
+    if (rows.length === 0) throw new Error("Zetaris returned 0 rows; not writing an empty snapshot (check the views in sql/zetaris.sql)");
     fs.mkdirSync(path.join(here, "data"), { recursive: true });
     fs.writeFileSync(SAMPLE_FILE, JSON.stringify({
       takenAt: new Date().toISOString(),
